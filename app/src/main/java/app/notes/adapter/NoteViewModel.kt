@@ -9,6 +9,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 
 class NoteViewModel: ViewModel() {
     private val _notes = MutableStateFlow<List<Note>>(emptyList())
@@ -63,6 +67,64 @@ class NoteViewModel: ViewModel() {
         }
     }
 
+    fun createNote(title:String, content:String){
+        val json = JSONObject().apply {
+            put("title", title)
+            put("content", content)
+        }
+        val requestBody = json.toString().toRequestBody("application/json".toMediaType())
+        postOrPatchNote(null, requestBody)
+    }
 
+    fun editNote(id: String, title: String, content: String) {
+        val json = JSONObject().apply {
+            put("title", title)
+            put("content", content)
+        }
+        val requestBody = json.toString().toRequestBody("application/json".toMediaType())
+        postOrPatchNote(id, requestBody)
+    }
+
+    private fun postOrPatchNote(id: String?, body: RequestBody) = viewModelScope.launch {
+        _loading.value = true
+        try {
+            val response = if (id == null)
+                api.createNote(body)
+            else
+                api.editNote(id, body)
+
+            if (response.error == null) {
+                _operationResult.value = response.data
+            } else {
+                _error.value = response.error
+            }
+        } catch (e: Exception) {
+            _error.value = e.message
+        } finally {
+            _loading.value = false
+        }
+    }
+
+    fun deleteNote(id: String) = viewModelScope.launch {
+        _loading.value = true
+        try {
+            val response = api.deleteNote(id)
+            if (response.error == null) {
+                _deleteResult.value = response.data
+            } else {
+                _error.value = response.error
+            }
+        } catch (e: Exception) {
+            _error.value = e.message
+        } finally {
+            _loading.value = false
+        }
+    }
+
+    fun resetOperationState() {
+        _operationResult.value = null
+        _deleteResult.value = null
+        _error.value = null
+    }
 
 }
